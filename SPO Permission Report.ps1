@@ -1,16 +1,10 @@
 # SharePoint Online Permissions Audit Report - Remodeled with Certificate Authentication
 
-#region ***Parameters***
-# Example usage:
-$SiteURL="https://domain.sharepoint.com/sites/xy/"
-$ReportFile="C:\filepath\site-SitePermission.csv"
-#endregion
-
 # --- Azure AD (Entra ID) App Registration Details ---
 # 👈 IMPORTANT: Replace these placeholders with YOUR actual values from your App Registration
-$ClientID = "CLIENTID"
-$TenantID = "TENANTID"
-$CertificateThumbprint = "CERTIFICATE_THUMBPRINT"
+$ClientID = ""
+$TenantID = ""
+$CertificateThumbprint = ""
 
 # --- Global Variable for Collected Permissions ---
 # This array will store all permission entries before a single export to CSV.
@@ -338,10 +332,30 @@ Function Generate-PnPSitePermissionRpt()
     }
 }
 
+#Connect to Admin Center
+$TenantAdminURL = "https://TENANT-admin.SharePoint.com"
+Connect-PnPOnline -Url $TenantAdminURL -Thumbprint $CertificateThumbprint -Tenant $TenantID -ClientId $ClientID -ErrorAction Stop
+
+#Get All Site collections - Exclude: Seach Center, Redirect site, Mysite Host, App Catalog, Content Type Hub, eDiscovery and Bot Sites
+$SitesCollections = Get-PnPTenantSite | Where -Property Template -NotIn ("SRCHCEN#0","REDIRECTSITE#0", "SPSMSITEHOST#0", "APPCATALOG#0", "POINTPUBLISHINGHUB#0", "EDISC#0", "STS#-1")
+   
+#Loop through each site collection
+ForEach($Site in $SitesCollections)
+{
+    #Connect to site collection
+    $SiteConn = Connect-PnPOnline -Url $Site.Url -Thumbprint $CertificateThumbprint -Tenant $TenantID -ClientId $ClientID -ErrorAction Stop
+    Write-host "Generating Report for Site:"$Site.Url
+ 
+    #Call the Function for site collection
+    $ReportFile = "C:\PATH\$($Site.URL.Replace('https://','').Replace('/','_')).CSV"
+    Generate-PnPSitePermissionRpt -SiteURL $Site.URL -ReportFile $ReportFile -Recursive
+}
+
+
 
 # Call the function to generate permission report
 # Example 1: Scan a single site and its folders for unique permissions
-Generate-PnPSitePermissionRpt -SiteURL $SiteURL -ReportFile $ReportFile -ScanFolders
+#Generate-PnPSitePermissionRpt -SiteURL $SiteURL -ReportFile $ReportFile -ScanFolders
 
 # Example 2: Scan recursively, including folders and inherited permissions
-# Generate-PnPSitePermissionRpt -SiteURL $SiteURL -ReportFile $ReportFile -Recursive -ScanFolders -IncludeInheritedPermissions
+#Generate-PnPSitePermissionRpt -SiteURL $SiteURL -ReportFile $ReportFile -Recursive -ScanFolders -IncludeInheritedPermissions
